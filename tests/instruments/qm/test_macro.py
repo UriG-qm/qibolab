@@ -10,7 +10,6 @@ from qibolab._core.instruments.qm.macro import QuaEmissionContext, QuaMacro
 from qibolab._core.pulses.pulse import QuaMacroInstruction
 from qibolab._core.sequence import PulseSequence
 
-
 # ---------------------------------------------------------------------------
 # Fixtures / helpers
 # ---------------------------------------------------------------------------
@@ -123,3 +122,67 @@ def test_spy_macro_emit_called():
     spy.emit(ctx)
     assert spy.call_count == 1
     assert spy.last_ctx is ctx
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Cross-macro QUA var sharing — (b) spec #22 validation case
+# ---------------------------------------------------------------------------
+
+
+def test_ctx_shared_across_macros_in_same_sequence():
+    """Cross-macro QUA var sharing — per (b) spec #22 validation case.
+
+    Two macros share a single QuaEmissionContext:
+      - Macro 1 (WriterMacro) calls ctx.declare(name="shared") and stores the
+        returned handle in ctx.qua_vars["shared"].
+      - Macro 2 (ReaderMacro) reads ctx.qua_vars["shared"] and asserts it is
+        the value that Macro 1 registered.
+
+    This test bypasses play() (which requires a real QUA program() context)
+    and validates the core invariant directly: a shared ctx lets later macros
+    read vars declared by earlier ones.  The play()-level integration is
+    exercised end-to-end in the qibo-adapter demo suite once real macros ship
+    there.
+    """
+    handle = MagicMock(name="qua_var_handle")
+
+    class WriterMacro(QuaMacro):
+        """Registers a named var on the shared context."""
+
+        def emit(self, ctx: QuaEmissionContext) -> None:
+            # Simulate what ctx.declare(fixed, name="shared") does:
+            # store the handle and record it under the given name.
+            ctx.qua_vars["shared"] = handle
+
+    class ReaderMacro(QuaMacro):
+        """Reads the var declared by WriterMacro and stores it for assertion."""
+
+        found: object = None
+
+        model_config = {
+            "frozen": False,
+            "extra": "forbid",
+            "arbitrary_types_allowed": True,
+        }
+
+        def emit(self, ctx: QuaEmissionContext) -> None:
+            object.__setattr__(self, "found", ctx.qua_vars.get("shared"))
+
+    writer = WriterMacro()
+    reader = ReaderMacro()
+
+    # Single shared context — mirrors what play() now constructs once.
+    ctx = QuaEmissionContext(
+        qua_vars={},
+        elements=frozenset(["q0/drive"]),
+        streams={},
+        _emit_sequence=None,
+    )
+
+    writer.emit(ctx)
+    reader.emit(ctx)
+
+    assert reader.found is handle, (
+        "ReaderMacro did not see the var declared by WriterMacro; "
+        "ctx must be shared across macros in the same sequence."
+    )

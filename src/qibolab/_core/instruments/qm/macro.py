@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable
 
 from qm.qua import declare, declare_stream
 from qm.qua.type_hints import QuaVariable
@@ -43,7 +43,7 @@ class QuaMacro(Model):
     """
 
     @abstractmethod
-    def emit(self, ctx: "QuaEmissionContext") -> None:
+    def emit(self, ctx: QuaEmissionContext) -> None:
         """Emit QUA imperatives for this macro.
 
         Called by the QM backend's emission loop when a
@@ -87,15 +87,15 @@ class QuaEmissionContext:
     # strict_timing_) can re-enter the qibolab emission loop. Set by the
     # emission loop at construction; not a user-facing parameter — macros
     # access it only via ``ctx.emit_sequence(inner)``.
-    _emit_sequence: Optional[Callable[["PulseSequence"], None]] = None
+    _emit_sequence: Callable[[PulseSequence], None] | None = None
 
     def declare(
         self,
         type_: type,
         *,
-        size: Optional[int] = None,
+        size: int | None = None,
         value: Any = None,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> QuaVariable:
         """Declare a new QUA variable; register it in ``qua_vars`` if
         ``name`` is given so later macros can look it up.
@@ -144,7 +144,7 @@ class QuaEmissionContext:
         self.streams[name] = stream
         return stream
 
-    def emit_sequence(self, inner: "PulseSequence") -> None:
+    def emit_sequence(self, inner: PulseSequence) -> None:
         """Re-enter the qibolab emission loop for a child sequence.
 
         Used by block-wrapper macros (e.g. ``StrictTimingMacro``) so they

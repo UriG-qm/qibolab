@@ -107,6 +107,34 @@ def play(args: ExecutionArguments):
     # in the sequence
     processed_aligns = set()
 
+    # Build QuaEmissionContext ONCE at play() entry. Reused for every
+    # QuaMacroInstruction in this sequence so named QUA vars declared by one
+    # macro are visible to later macros (per the (b) spec's #22 validation
+    # case — ComputeRamseyPhase → ApplyPhaseRotation).
+    #
+    # Deferred import avoids a circular import on module load (macro.py
+    # imports serialize.Model; program.instructions is imported during
+    # QmController setup, which indirectly reaches those modules).
+    #
+    # Note: when a block-wrapper macro calls ctx.emit_sequence(inner),
+    # _play_sequence → play() is called recursively with a fresh ctx scoped
+    # to the inner sequence. Vars declared on the outer ctx do NOT flow into
+    # the inner ctx — that is intentional; inner sequences have their own
+    # element set and sweeper vars.
+    from qibolab._core.instruments.qm.macro import (  # noqa: PLC0415
+        QuaEmissionContext,
+        QuaMacro,
+    )
+
+    ctx = QuaEmissionContext(
+        qua_vars=dict(args.sweeper_qua_vars),
+        elements=frozenset(str(ch) for ch, _ in args.sequence),
+        streams={},
+    )
+    # Wire re-entry callback so block-wrapper macros can emit nested
+    # PulseSequences inside QUA context managers (strict_timing_, etc.).
+    ctx._emit_sequence = lambda inner_seq: _play_sequence(inner_seq, args)
+
     for channel_id, pulse in args.sequence:
         element = str(channel_id)
         op = operation(pulse)
@@ -125,29 +153,11 @@ def play(args: ExecutionArguments):
             qua.align(*(str(ch) for ch in channel_ids))
             processed_aligns.add(pulse.id)
         elif isinstance(pulse, QuaMacroInstruction):
-            # Narrow the Any payload to QuaMacro at the dispatch boundary.
-            # Local imports avoid circular-import risk (macro.py → serialize
-            # → Model; instructions.py → pulses; no cycle).
-            from qibolab._core.instruments.qm.macro import (  # noqa: PLC0415
-                QuaEmissionContext,
-                QuaMacro,
-            )
-
             if not isinstance(pulse.macro, QuaMacro):
                 raise TypeError(
                     f"QuaMacroInstruction.macro must be a QuaMacro instance, "
                     f"got {type(pulse.macro).__name__}"
                 )
-            # Build element set from all channel ids in this sequence.
-            elements = frozenset(str(ch) for ch, _ in args.sequence)
-            ctx = QuaEmissionContext(
-                qua_vars=dict(args.sweeper_qua_vars),
-                elements=elements,
-                streams={},
-            )
-            # Wire re-entry callback so block-wrapper macros can emit nested
-            # PulseSequences inside QUA context managers (strict_timing_, etc.).
-            ctx._emit_sequence = lambda inner_seq: _play_sequence(inner_seq, args)
             pulse.macro.emit(ctx)
 
     if args.relaxation_time > 0:
