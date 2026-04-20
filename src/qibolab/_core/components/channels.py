@@ -30,7 +30,12 @@ class Channel(Model):
     """Channel to communicate with the qubit."""
 
     device: str = ""
-    """Name of the device."""
+    """Name of the device.
+
+    For AcquisitionChannel with Octave-routed readout, this must be the Octave
+    name (e.g. 'oct1'), not the OPX name. The OPX ADC port is resolved
+    internally via octave.connectivity. For direct ADC readout (non-Octave),
+    this is the OPX name."""
     path: str = ""
     """Physical port addresss within the device."""
 

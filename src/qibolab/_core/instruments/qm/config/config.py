@@ -173,6 +173,14 @@ class Configuration:
         id: ChannelId,
     ):
         port = acquire_channel.port
+        if acquire_channel.device not in self.octaves:
+            raise ValueError(
+                f"AcquisitionChannel.device={acquire_channel.device!r} is not a "
+                f"registered Octave. For Octave readout, .device must be the "
+                f"Octave name (e.g. 'oct1'), not the OPX name. The OPX ADC port "
+                f"is resolved internally via octave.connectivity. "
+                f"Known octaves: {list(self.octaves)}"
+            )
         octave = self.octaves[acquire_channel.device]
         octave.RF_inputs[port] = OctaveInput(lo_config.frequency)
         self.controllers[octave.connectivity].add_octave_input(port, acquire_config)
