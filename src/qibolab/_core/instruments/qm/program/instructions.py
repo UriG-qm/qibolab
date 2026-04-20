@@ -193,7 +193,13 @@ def program(
     """QUA program implementing the required experiment."""
     with qua.program() as experiment:
         n = declare(int)
-        # declare acquisition variables
+        # First pass: all declare_stream(...) calls grouped at the top of the
+        # declarations header — matching the canonical QUA idiom.  Runtime is
+        # unchanged (the QM compiler already hoists streams); this makes the
+        # source-level emission order explicit.
+        for acquisition in args.acquisitions.values():
+            acquisition.declare_streams()
+        # Second pass: scalar declare(fixed|int) + assign_variables_to_element.
         for acquisition in args.acquisitions.values():
             acquisition.declare()
         # execute pulses

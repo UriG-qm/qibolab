@@ -63,11 +63,28 @@ class Acquisition(ABC):
         return len(self.keys)
 
     @abstractmethod
-    def declare(self):
-        """Declares QUA variables related to this acquisition.
+    def declare_streams(self):
+        """Declare QUA stream variables for this acquisition.
 
-        Assigns acquisition variables to the corresponding QM
-        controller. This was proposed by QM to avoid crashes.
+        Emits all ``declare_stream(...)`` calls and nothing else.
+        Called in the first pass of the program declarations header so
+        that every stream declaration is grouped at the very top of the
+        ``with qua.program()`` block — matching the canonical QUA
+        declarations-header idiom — before any scalar ``declare()``
+        calls or the sweep loop opens.
+        """
+
+    @abstractmethod
+    def declare(self):
+        """Declare QUA scalar variables for this acquisition.
+
+        Emits ``declare(fixed)`` / ``declare(int)`` calls and
+        ``assign_variables_to_element(...)`` — no stream declarations.
+        Called in the second pass of the program declarations header,
+        after :meth:`declare_streams` has been called for every
+        acquisition.  This guarantees the emitted ``.program.py`` order:
+        all ``declare_stream(...)`` → all scalar ``declare(...)`` → the
+        sweep loop opens.
         """
 
     @abstractmethod
@@ -117,8 +134,11 @@ class RawAcquisition(Acquisition):
     adc_stream: Optional[_ResultSource] = None
     """Stream to collect raw ADC data."""
 
-    def declare(self):
+    def declare_streams(self):
         self.adc_stream = declare_stream(adc_trace=True)
+
+    def declare(self):
+        pass  # all variables for RawAcquisition are streams; nothing to declare here
 
     def measure(self, operation):
         qua.reset_phase(self.element)
@@ -152,11 +172,13 @@ class IntegratedAcquisition(Acquisition):
     qstream: Optional[_ResultSource] = None
     """Streams to collect the results of all shots."""
 
+    def declare_streams(self):
+        self.istream = declare_stream()
+        self.qstream = declare_stream()
+
     def declare(self):
         self.i = declare(fixed)
         self.q = declare(fixed)
-        self.istream = declare_stream()
-        self.qstream = declare_stream()
         assign_variables_to_element(self.element, self.i, self.q)
 
     def measure(self, operation):
@@ -216,11 +238,13 @@ class ShotsAcquisition(Acquisition):
         self.cos = np.cos(self.angle)
         self.sin = np.sin(self.angle)
 
+    def declare_streams(self):
+        self.shots = declare_stream()
+
     def declare(self):
         self.i = declare(fixed)
         self.q = declare(fixed)
         self.shot = declare(int)
-        self.shots = declare_stream()
         assign_variables_to_element(self.element, self.i, self.q, self.shot)
 
     def measure(self, operation):
