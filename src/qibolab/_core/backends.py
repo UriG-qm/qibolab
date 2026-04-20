@@ -110,17 +110,32 @@ class QibolabBackend(NumpyBackend):
             gate.result.backend = self
             gate.result.register_samples(np.array(samples).T)
 
+    def compile_circuit(self, circuit):
+        """Transpile + compile a Circuit to a PulseSequence.
+
+        Does not touch hardware — use this to inspect the emitted
+        pulse sequence (and, via the QM backend, the emitted QUA) for
+        offline review.
+
+        Args:
+            circuit: qibo Circuit to compile.
+
+        Returns:
+            Tuple of ``(PulseSequence, measurement_map)`` matching
+            ``Compiler.default().compile(circuit, self.platform)``.
+        """
+        if isinstance(circuit, Circuit):
+            return self.compiler.compile(circuit, self.platform)
+        raise_error(
+            TypeError,
+            f"compile_circuit expects a qibo Circuit, got {type(circuit).__name__}.",
+        )
+
     def execute_circuit(self, circuit, initial_state=None, nshots=1000):
         """Executes a quantum circuit.
 
-        Args:
-            circuit (:class:`qibo.models.circuit.Circuit`): Circuit to execute.
-            initial_state (:class:`qibo.models.circuit.Circuit`): Circuit to prepare the initial state.
-                If ``None`` the default ``|00...0>`` state is used.
-            nshots (int): Number of shots to sample from the experiment.
-
-        Returns:
-            ``MeasurementOutcomes`` object containing the results acquired from the execution.
+        Internally calls ``compile_circuit`` and then connects to
+        hardware and runs the sequence.
         """
         if isinstance(initial_state, Circuit):
             return self.execute_circuit(
@@ -133,7 +148,7 @@ class QibolabBackend(NumpyBackend):
                 "Hardware backend only supports circuits as initial states.",
             )
 
-        sequence, measurement_map = self.compiler.compile(circuit, self.platform)
+        sequence, measurement_map = self.compile_circuit(circuit)
 
         self.platform.connect()
 
