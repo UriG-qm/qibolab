@@ -51,12 +51,37 @@ class Acquisition(ABC):
     """Element from QM ``config`` that the pulse will be applied on."""
     average: bool
     keys: list[int] = field(default_factory=list)
+    stream: Optional[str] = None
+    """User-chosen stream base name.
+
+    When non-None, stream variables are named ``<stream>_I`` /
+    ``<stream>_Q`` instead of the channel-derived ``self.name``.
+    When None (default) the original channel-collapsed behaviour is
+    preserved.
+    """
+    save: bool = True
+    """When False, skip ``qua.save`` and ``stream_processing`` entries.
+
+    The ``measure`` instruction is still emitted.  Default is True,
+    preserving current behaviour.
+    """
 
     @property
     def name(self):
         """Identifier to download results from the instruments."""
         # FIXME: QUA 1.2.1a2 and OPX1000 don't like `/` character in stream processing ``save``
         return f"{self.operation}_{self.element}".replace("/", "|")
+
+    @property
+    def stream_name(self) -> str:
+        """Effective stream base name used for QUA stream allocation.
+
+        Returns the user-supplied :attr:`stream` when set, otherwise
+        falls back to the channel-derived :attr:`name`.  This is the
+        single override point: all stream label construction in subclasses
+        should use ``self.stream_name`` rather than ``self.name`` directly.
+        """
+        return self.stream if self.stream is not None else self.name
 
     @property
     def npulses(self):
@@ -167,10 +192,13 @@ class IntegratedAcquisition(Acquisition):
             qua.dual_demod.full("cos", "out1", "sin", "out2", self.i),
             qua.dual_demod.full("minus_sin", "out1", "cos", "out2", self.q),
         )
-        qua.save(self.i, self.istream)
-        qua.save(self.q, self.qstream)
+        if self.save:
+            qua.save(self.i, self.istream)
+            qua.save(self.q, self.qstream)
 
     def download(self, *dimensions):
+        if not self.save:
+            return
         istream = self.istream
         qstream = self.qstream
         if self.npulses > 1:
@@ -182,12 +210,12 @@ class IntegratedAcquisition(Acquisition):
         if self.average:
             istream = istream.average()
             qstream = qstream.average()
-        istream.save(f"{self.name}_I")
-        qstream.save(f"{self.name}_Q")
+        istream.save(f"{self.stream_name}_I")
+        qstream.save(f"{self.stream_name}_Q")
 
     def fetch(self, handles):
-        ires = handles.get(f"{self.name}_I").fetch_all()
-        qres = handles.get(f"{self.name}_Q").fetch_all()
+        ires = handles.get(f"{self.stream_name}_I").fetch_all()
+        qres = handles.get(f"{self.stream_name}_Q").fetch_all()
         signal = _collect(ires, qres, self.npulses)
         return _split(signal, self.npulses)
 
@@ -235,9 +263,12 @@ class ShotsAcquisition(Acquisition):
             self.shot,
             qua.Cast.to_int(self.i * self.cos - self.q * self.sin > self.threshold),
         )
-        qua.save(self.shot, self.shots)
+        if self.save:
+            qua.save(self.shot, self.shots)
 
     def download(self, *dimensions):
+        if not self.save:
+            return
         shots = self.shots
         if self.npulses > 1:
             shots = shots.buffer(self.npulses)
@@ -245,10 +276,10 @@ class ShotsAcquisition(Acquisition):
             shots = shots.buffer(dim)
         if self.average:
             shots = shots.average()
-        shots.save(f"{self.name}_shots")
+        shots.save(f"{self.stream_name}_shots")
 
     def fetch(self, handles):
-        shots = handles.get(f"{self.name}_shots").fetch_all()
+        shots = handles.get(f"{self.stream_name}_shots").fetch_all()
         return _split(shots, self.npulses)
 
 
@@ -265,17 +296,26 @@ def create_acquisition(
     options: ExecutionParameters,
     threshold: float,
     angle: float,
+    stream: Optional[str] = None,
+    save: bool = True,
 ) -> Acquisition:
     """Create container for the variables used for saving acquisition in the
     QUA program.
+
+    Args:
+        stream: Optional user-chosen stream base name.  When non-None,
+            stream variables are named ``<stream>_I`` / ``<stream>_Q``
+            instead of the channel-derived default.
+        save: When False, ``qua.save`` and ``stream_processing`` entries
+            are skipped; the ``measure`` instruction is still emitted.
 
     Returns:
         ``Acquisition`` object containing acquisition variables.
     """
     average = options.averaging_mode is AveragingMode.CYCLIC
-    kwargs = {}
+    kwargs: dict = {"stream": stream, "save": save}
     if options.acquisition_type is AcquisitionType.DISCRIMINATION:
-        kwargs = {"threshold": threshold, "angle": angle}
+        kwargs.update({"threshold": threshold, "angle": angle})
     acquisition = ACQUISITION_TYPES[options.acquisition_type](
         operation, element, average, **kwargs
     )

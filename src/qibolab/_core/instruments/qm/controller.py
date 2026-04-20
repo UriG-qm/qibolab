@@ -579,7 +579,13 @@ class QmController(Controller):
                 acquisition = acquisitions[(op, channel_id)]
             else:
                 acquisition = acquisitions[(op, channel_id)] = create_acquisition(
-                    op, channel_id, options, acq_config.threshold, acq_config.iq_angle
+                    op,
+                    channel_id,
+                    options,
+                    acq_config.threshold,
+                    acq_config.iq_angle,
+                    stream=readout.stream,
+                    save=readout.save,
                 )
             acquisition.keys.append(readout.acquisition.id)
 

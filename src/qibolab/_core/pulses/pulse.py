@@ -150,6 +150,21 @@ class Readout(_PulseLike):
     acquisition: Acquisition
     probe: Pulse
     time_of_flight: float = 0.0
+    stream: str | None = None
+    """User-chosen stream base name.
+
+    When non-None, allocate a dedicated ``<stream>_I`` / ``<stream>_Q``
+    stream pair instead of the channel-derived default.  When None (the
+    default) the current channel-collapsed behaviour is preserved.
+    """
+    save: bool = True
+    """Whether to emit ``qua.save`` and ``stream_processing`` entries.
+
+    When False the ``measure`` instruction is still emitted (so the OPX
+    still acquires, e.g. for downstream classification), but no save or
+    stream-processing entry is generated.  Default is True, preserving
+    current behaviour.
+    """
 
     @classmethod
     def from_probe(cls, probe: Pulse):
