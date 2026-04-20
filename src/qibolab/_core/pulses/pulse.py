@@ -26,6 +26,16 @@ PulseId = UUID4
 
 class _PulseLike(Model):
     id_: PulseId = Field(default_factory=uuid4, exclude=True)
+    name: str | None = None
+    """Optional user-supplied name for the QUA operation key.
+
+    When set, overrides the default hash-derived name in the QM backend
+    config (e.g. ``play("my_pulse", ...)`` instead of
+    ``play("-2194924526671854415", ...)``).  Two pulses that are
+    structurally identical but carry different *name* values still
+    compare equal at the qibolab level — the QM config builder
+    differentiates them via ``operation(pulse)``.
+    """
 
     @property
     def id(self) -> PulseId:
@@ -43,12 +53,13 @@ class _PulseLike(Model):
         # https://github.com/pydantic/pydantic/discussions/6717
         s = vars(self)
         o = vars(other)
+        _SKIP = {"id_", "name"}
         return isinstance(other, type(self)) and all(
-            s[k] == o[k] for k in s if k != "id_"
+            s[k] == o[k] for k in s if k not in _SKIP
         )
 
     def __hash__(self) -> int:
-        return hash(tuple(v for k, v in vars(self).items() if k != "id_"))
+        return hash(tuple(v for k, v in vars(self).items() if k not in {"id_", "name"}))
 
 
 class Pulse(_PulseLike):

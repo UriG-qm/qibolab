@@ -22,7 +22,17 @@ MINIMUM_LENGTH = 16
 
 
 def operation(pulse):
-    """Generate operation name in QM ``config`` for the given pulse."""
+    """Generate operation name in QM ``config`` for the given pulse.
+
+    When ``pulse.name`` is set, use it directly so the emitted QUA
+    references a human-readable operation key (e.g. ``play("readout",
+    ...)``).  Otherwise fall back to the hash-derived name.
+
+    ``getattr`` is used so the function is safe to call on pulse
+    subclasses that pre-date the ``name`` field.
+    """
+    if getattr(pulse, "name", None):
+        return pulse.name
     return str(hash(pulse))
 
 
