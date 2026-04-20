@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass, field
 from typing import Union
 
@@ -84,7 +85,21 @@ Waveform = Union[ConstantWaveform, ArbitraryWaveform]
 def waveforms_from_pulse(
     pulse: Pulse, sampling_rate: int, max_voltage: float
 ) -> dict[str, Waveform]:
-    """Register QM waveforms for a given pulse."""
+    """Register QM waveforms for a given pulse.
+
+    Pulses shorter than 16 ns (QM minimum sample count) are padded to
+    16 ns and a UserWarning is emitted naming the requested duration
+    and the pulse envelope.
+    """
+    if pulse.duration < MINIMUM_LENGTH:
+        warnings.warn(
+            f"Pulse duration {pulse.duration} ns is below the QM minimum "
+            f"{MINIMUM_LENGTH} ns; it will be padded to the minimum. "
+            f"Sweep values below {MINIMUM_LENGTH} ns will alias. "
+            f"(envelope: {type(pulse.envelope).__name__})",
+            UserWarning,
+            stacklevel=2,
+        )
     needs_baking = pulse.duration < 16 or pulse.duration % 4 != 0
     wvtype = (
         ConstantWaveform
