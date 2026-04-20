@@ -142,6 +142,11 @@ class Platform:
         """Channel to coupler map."""
         return _channels_map(self.couplers)
 
+    @property
+    def configs(self) -> dict[str, Config]:
+        """Return the full channel-id -> Config mapping held by parameters."""
+        return self.parameters.configs
+
     def config(self, name: str) -> Config:
         """Returns configuration of given component."""
         # pylint: disable=unsubscriptable-object
