@@ -76,7 +76,14 @@ class Sweeper(Model):
     parameter: Parameter
     """Parameter to be swept."""
     values: Optional[npt.NDArray] = None
-    """Array of parameter values to sweep over."""
+    """Array of parameter values to sweep over.
+
+For ``Parameter.frequency``, entries are **absolute** Hz. The QM
+backend interprets them against the channel's LO via
+``find_lo_frequencies`` and emits the resulting IF. If you have
+offsets, add them to the current channel frequency before building
+the Sweeper.
+"""
     range: Optional[Range] = None
     """Tuple of ``(start, stop, step)``.
 

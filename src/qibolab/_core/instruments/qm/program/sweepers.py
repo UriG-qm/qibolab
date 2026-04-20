@@ -40,7 +40,10 @@ def find_lo_frequencies(
         max_freq = max(abs(values - lo_frequency))
         if max_freq > FREQUENCY_BANDWIDTH:
             raise ValueError(
-                f"Frequency {max_freq} for channel {id} is beyond instrument bandwidth."
+                f"Frequency {max_freq} for channel {id} is beyond instrument "
+                f"bandwidth {FREQUENCY_BANDWIDTH} Hz against LO {lo_frequency} Hz. "
+                f"Did you pass offsets instead of absolute frequencies? "
+                f"Sweeper.values for Parameter.frequency must be absolute Hz."
             )
         args.parameters[id].lo_frequency = int(lo_frequency)
 
