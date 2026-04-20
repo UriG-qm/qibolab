@@ -1,10 +1,16 @@
-from typing import Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from qm import qua
 from qm.qua import declare, fixed, for_
 
+if TYPE_CHECKING:
+    from qibolab._core.sequence import PulseSequence
+
 from qibolab._core.execution_parameters import AcquisitionType, ExecutionParameters
 from qibolab._core.pulses import Align, Delay, Pulse, Readout, VirtualZ
+from qibolab._core.pulses.pulse import QuaMacroInstruction
 from qibolab._core.sweeper import ParallelSweepers, Parameter, Sweeper
 
 from ..config import operation
@@ -55,7 +61,7 @@ def _play_single_waveform(
     op: str,
     element: str,
     parameters: Parameters,
-    acquisition: Optional[Acquisition] = None,
+    acquisition: Acquisition | None = None,
 ):
     if parameters.amplitude is not None:
         op = parameters.amplitude_op * parameters.amplitude
@@ -75,7 +81,7 @@ def _play(
     op: str,
     element: str,
     parameters: Parameters,
-    acquisition: Optional[Acquisition] = None,
+    acquisition: Acquisition | None = None,
 ):
     if parameters.phase is not None:
         qua.frame_rotation_2pi(parameters.phase, element)
@@ -118,6 +124,31 @@ def play(args: ExecutionArguments):
             channel_ids = args.sequence.pulse_channels(pulse.id)
             qua.align(*(str(ch) for ch in channel_ids))
             processed_aligns.add(pulse.id)
+        elif isinstance(pulse, QuaMacroInstruction):
+            # Narrow the Any payload to QuaMacro at the dispatch boundary.
+            # Local imports avoid circular-import risk (macro.py → serialize
+            # → Model; instructions.py → pulses; no cycle).
+            from qibolab._core.instruments.qm.macro import (  # noqa: PLC0415
+                QuaEmissionContext,
+                QuaMacro,
+            )
+
+            if not isinstance(pulse.macro, QuaMacro):
+                raise TypeError(
+                    f"QuaMacroInstruction.macro must be a QuaMacro instance, "
+                    f"got {type(pulse.macro).__name__}"
+                )
+            # Build element set from all channel ids in this sequence.
+            elements = frozenset(str(ch) for ch, _ in args.sequence)
+            ctx = QuaEmissionContext(
+                qua_vars=dict(args.sweeper_qua_vars),
+                elements=elements,
+                streams={},
+            )
+            # Wire re-entry callback so block-wrapper macros can emit nested
+            # PulseSequences inside QUA context managers (strict_timing_, etc.).
+            ctx._emit_sequence = lambda inner_seq: _play_sequence(inner_seq, args)
+            pulse.macro.emit(ctx)
 
     if args.relaxation_time > 0:
         qua.wait(args.relaxation_time // 4)
@@ -146,6 +177,20 @@ def _process_sweeper(sweeper: Sweeper, args: ExecutionArguments):
         values = NORMALIZERS[parameter](values)
 
     return variable, values
+
+
+def _play_sequence(sequence: PulseSequence, args: ExecutionArguments):
+    """Re-enter the pulse-emission loop for a child ``PulseSequence``.
+
+    Used by block-wrapper macros (e.g. ``StrictTimingMacro``) via
+    ``QuaEmissionContext.emit_sequence``. Shares ``args`` from the outer
+    context so sweep-parameter updates remain in effect.
+    """
+
+    original = args.sequence
+    args.sequence = sequence
+    play(args)
+    args.sequence = original
 
 
 def sweep(
@@ -178,6 +223,10 @@ def sweep(
                     for channel in sweeper.channels:
                         params = args.parameters[channel]
                         method(variable, params)
+                # Register named sweep vars so QuaMacro instances can read them
+                # via ctx.qua_vars. Sweepers without a name are silently skipped.
+                if sweeper.name is not None:
+                    args.sweeper_qua_vars[sweeper.name] = variable
 
             sweep(sweepers[1:], args)
 

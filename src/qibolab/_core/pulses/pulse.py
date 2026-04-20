@@ -1,6 +1,6 @@
 """Pulse class."""
 
-from typing import Annotated, Literal, Union, cast
+from typing import Annotated, Any, Literal, Union, cast
 from uuid import uuid4
 
 import numpy as np
@@ -16,6 +16,7 @@ __all__ = [
     "Pulse",
     "PulseId",
     "PulseLike",
+    "QuaMacroInstruction",
     "Readout",
     "VirtualZ",
 ]
@@ -189,7 +190,28 @@ class Align(_PulseLike):
     kind: Literal["align"] = "align"
 
 
+class QuaMacroInstruction(_PulseLike):
+    """PulseSequence-admissible wrapper around a QM-scoped QUA macro.
+
+    The ``macro`` payload is typed ``Any`` to keep this module
+    backend-agnostic — the concrete type is ``QuaMacro`` from
+    ``qibolab._core.instruments.qm.macro``, narrowed at the QM dispatch
+    site. Non-QM backends raise on encounter.
+
+    Duration is 0, like ``VirtualZ``. Giving it a channel keeps ``align``,
+    ``pulse_channels``, and ``channel_duration`` well-defined.
+    """
+
+    kind: Literal["qua_macro"] = "qua_macro"
+    macro: Any
+
+    @property
+    def duration(self) -> float:
+        """Duration of a macro instruction is always zero."""
+        return 0.0
+
+
 PulseLike = Annotated[
-    Union[Align, Pulse, Delay, VirtualZ, Acquisition, Readout],
+    Union[Align, Pulse, Delay, VirtualZ, Acquisition, Readout, QuaMacroInstruction],
     Field(discriminator="kind"),
 ]
