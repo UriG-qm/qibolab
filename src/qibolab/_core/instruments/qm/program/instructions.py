@@ -100,24 +100,46 @@ def play(args: ExecutionArguments):
     # because the same ``Align`` will appear on multiple channels
     # in the sequence
     processed_aligns = set()
+    last_op: dict[str, type] = {}  # element -> last op class
 
     for channel_id, pulse in args.sequence:
         element = str(channel_id)
         op = operation(pulse)
         params = args.parameters[pulse.id]
-        if isinstance(pulse, Pulse):
-            _play(op, element, params)
-        elif isinstance(pulse, Readout):
+
+        if isinstance(pulse, Readout):
+            # cross-element dirty check before measure
+            dirty = sorted(
+                e
+                for e, op_cls in last_op.items()
+                if e != element and op_cls in (Pulse, Delay)
+            )
+            if dirty:
+                qua.align(*dirty, element)
             acquisition = args.acquisitions.get((op, element))
             _play(op, element, params, acquisition)
+            last_op[element] = Readout
+        elif isinstance(pulse, Pulse):
+            # symmetric: align if prior op on another element was a measure
+            dirty = sorted(
+                e for e, op_cls in last_op.items() if e != element and op_cls is Readout
+            )
+            if dirty:
+                qua.align(*dirty, element)
+            _play(op, element, params)
+            last_op[element] = Pulse
         elif isinstance(pulse, Delay):
             _delay(pulse, element, params)
+            last_op[element] = Delay
         elif isinstance(pulse, VirtualZ):
             _virtualz(pulse, element, params)
+            # VirtualZ is zero-duration; does not dirty the element for align purposes
         elif isinstance(pulse, Align) and pulse.id not in processed_aligns:
             channel_ids = args.sequence.pulse_channels(pulse.id)
             qua.align(*(str(ch) for ch in channel_ids))
             processed_aligns.add(pulse.id)
+            for ch in channel_ids:
+                last_op[str(ch)] = Align
 
     if args.relaxation_time > 0:
         qua.wait(args.relaxation_time // 4)
