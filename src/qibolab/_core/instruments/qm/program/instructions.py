@@ -15,13 +15,18 @@ from .sweepers import INT_TYPE, NORMALIZERS, SWEEPER_METHODS, normalize_phase
 
 
 def _delay(pulse: Delay, element: str, parameters: Parameters):
-    # TODO: How to play delays on multiple elements?
+    clock_period_ns = 4
     if parameters.duration is None:
-        duration = max(int(pulse.duration) // 4 + 1, 4)
+        duration_ns = int(pulse.duration)
+        if duration_ns % clock_period_ns:
+            raise ValueError(
+                f"Delay duration {duration_ns} ns is not a multiple of the "
+                f"{clock_period_ns} ns clock. Round to a multiple before passing."
+            )
+        duration = max(duration_ns // clock_period_ns, 4)
         qua.wait(duration, element)
     elif parameters.interpolated:
-        duration = parameters.duration + 1
-        qua.wait(duration, element)
+        qua.wait(parameters.duration, element)
     else:
         duration = parameters.duration / (4 * parameters.sampling_rate)
         with qua.if_(duration < 4):
