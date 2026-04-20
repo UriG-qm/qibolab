@@ -23,11 +23,7 @@ def _delay(pulse: Delay, element: str, parameters: Parameters):
         duration = parameters.duration + 1
         qua.wait(duration, element)
     else:
-        duration = parameters.duration / (4 * parameters.sampling_rate)
-        with qua.if_(duration < 4):
-            qua.wait(4, element)
-        with qua.else_():
-            qua.wait(duration, element)
+        qua.wait(parameters.duration, element)
 
 
 def _virtualz(pulse: VirtualZ, element: str, parameters: Parameters):
@@ -132,7 +128,14 @@ def _process_sweeper(sweeper: Sweeper, args: ExecutionArguments):
         variable = declare(int)
         if parameter is Parameter.duration:
             sampling_rate = args.parameters[sweeper.pulses[0].id].sampling_rate
-            values = (sampling_rate * sweeper.values).astype(int)
+            values = (sweeper.values / (4 * sampling_rate)).astype(int)
+            if values.size > 0 and int(values.min()) < 4:
+                bad_ns = sweeper.values[values < 4]
+                raise ValueError(
+                    f"Duration sweep contains values {bad_ns.tolist()} ns that are "
+                    f"below the QM minimum of 16 ns (4 cycles). "
+                    f"All durations must be >= 16 ns."
+                )
         else:
             values = sweeper.values.astype(int)
     else:
