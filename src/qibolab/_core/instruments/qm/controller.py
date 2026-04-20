@@ -20,7 +20,7 @@ from qibolab._core.components import (
     IqConfig,
     OscillatorConfig,
 )
-from qibolab._core.execution_parameters import ExecutionParameters
+from qibolab._core.execution_parameters import ExecutionParameters, default
 from qibolab._core.identifier import ChannelId
 from qibolab._core.instruments.abstract import Controller
 from qibolab._core.pulses import Align, Delay, Pulse, Readout
@@ -653,9 +653,8 @@ class QmController(Controller):
                 self.register_pulses(configs, sequence)
                 acquisitions = self.register_acquisitions(configs, sequence, options)
 
-                args = ExecutionArguments(
-                    sequence, acquisitions, options.relaxation_time
-                )
+                relaxation_time = default(options.relaxation_time, 0)
+                args = ExecutionArguments(sequence, acquisitions, relaxation_time)
                 self.preprocess_sweeps(sweepers, configs, args, probe_map)
                 qua_program = program(args, options, sweepers)
 
