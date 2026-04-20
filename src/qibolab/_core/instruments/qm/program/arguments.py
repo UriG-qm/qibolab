@@ -46,10 +46,8 @@ class ExecutionArguments:
     parameters: dict[Union[str, ChannelId], Parameters] = field(
         default_factory=lambda: defaultdict(Parameters)
     )
+    # QUA variable handles keyed by ``Sweeper.name``, populated by ``sweep()``
+    # as it enters each nesting level. Read by the macro dispatch site to
+    # build ``QuaEmissionContext.qua_vars``. Only sweepers whose ``name`` is
+    # set contribute.
     sweeper_qua_vars: dict[str, "_Variable"] = field(default_factory=dict)
-    """QUA variable handles keyed by ``Sweeper.name``.
-
-    Populated by the ``sweep()`` loop as it enters each nesting level.
-    Only sweepers whose ``name`` field is set contribute to this mapping.
-    Read by the macro dispatch site to build ``QuaEmissionContext.qua_vars``.
-    """

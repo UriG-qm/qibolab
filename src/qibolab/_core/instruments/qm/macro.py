@@ -36,10 +36,12 @@ class QuaMacro(Model):
     because QUA is QM-only; no cross-backend portability is intended.
 
     No ``model_config`` redeclaration — inherits from ``Model`` (which
-    already sets ``frozen=True`` / ``extra="forbid"``). Subclasses that
-    genuinely need arbitrary-type fields must opt in explicitly via
-    ``model_config = ConfigDict(**Model.model_config, arbitrary_types_allowed=True)``
-    to avoid silently dropping inherited flags.
+    already sets ``frozen=True`` / ``extra="forbid"`` /
+    ``arbitrary_types_allowed=True``). Subclasses that need to override
+    one flag must spread the parent config explicitly, e.g.
+    ``model_config = ConfigDict(**Model.model_config, frozen=False)``.
+    Writing ``ConfigDict(frozen=False)`` alone silently drops the
+    inherited ``extra="forbid"`` guard and is a common footgun.
     """
 
     @abstractmethod
