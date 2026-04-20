@@ -87,6 +87,13 @@ class Sweeper(Model):
     """List of `qibolab.Pulse` to be swept."""
     channels: Optional[list[ChannelId]] = None
     """List of channel names for which the parameter should be swept."""
+    name: Optional[str] = None
+    """Optional logical name for QUA variable registration.
+
+    When set, the QM emission loop can register the sweep QUA variable
+    under this key in a ``QuaEmissionContext.qua_vars`` mapping, making
+    it addressable by user-authored :class:`QuaMacro` instances.
+    """
 
     @model_validator(mode="after")
     def check_values(self):

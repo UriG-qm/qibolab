@@ -126,3 +126,33 @@ def test_sweepers_equivalence():
         pulse_2 = pulse_1.model_copy(update={keys: param})
         sweeper2 = sweeper1.model_copy(update={"pulses": [pulse_2]})
         assert sweeper1 != sweeper2
+
+
+def test_sweeper_name_defaults_to_none():
+    pulse = Pulse(duration=40, amplitude=0.1, envelope=Rectangular())
+    s = Sweeper(parameter=Parameter.duration, values=np.array([10, 20]), pulses=[pulse])
+    assert s.name is None
+
+
+def test_sweeper_name_accepts_string():
+    pulse = Pulse(duration=40, amplitude=0.1, envelope=Rectangular())
+    s = Sweeper(
+        parameter=Parameter.duration,
+        values=np.array([10, 20]),
+        pulses=[pulse],
+        name="tau",
+    )
+    assert s.name == "tau"
+
+
+def test_sweeper_name_round_trips_through_pydantic():
+    pulse = Pulse(duration=40, amplitude=0.1, envelope=Rectangular())
+    s = Sweeper(
+        parameter=Parameter.duration,
+        values=np.array([10, 20]),
+        pulses=[pulse],
+        name="tau",
+    )
+    dumped = s.model_dump()
+    restored = Sweeper.model_validate(dumped)
+    assert restored.name == "tau"
