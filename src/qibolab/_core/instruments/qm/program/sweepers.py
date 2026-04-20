@@ -68,7 +68,14 @@ def normalize_phase(values: npt.NDArray) -> npt.NDArray:
 
 
 def normalize_duration(values: npt.NDArray) -> npt.NDArray:
-    """Convert duration from ns to clock cycles (clock cycle = 4ns)."""
+    """Convert duration from ns to QM clock cycles (4 ns each).
+
+    Used only on the ``Parameter.duration_interpolated`` sweep path.
+    The returned array feeds a QUA ``for_`` whose loop variable is in
+    cycles; ``play(..., duration=v)`` consumes the cycles value directly.
+    Source ns values e.g. ``[16, 20, ..., 196]`` map to cycle counts
+    ``[4, 5, ..., 49]``.
+    """
     if any(values < 16) or not all(values % 4 == 0):
         raise ValueError(
             "Cannot use interpolated duration sweeper for durations that are not multiple of 4ns or are less than 16ns. Please use normal duration sweeper."
@@ -98,6 +105,10 @@ def _duration(variable: _Variable, parameters: Parameters):
 
 
 def _duration_interpolated(variable: _Variable, parameters: Parameters):
+    """Set duration from interpolated sweep loop variable (in QM clock cycles).
+
+    The loop variable is in QM clock cycles (4 ns each), not nanoseconds.
+    """
     parameters.duration = variable
     parameters.interpolated = True
 
