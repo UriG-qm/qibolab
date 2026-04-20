@@ -113,6 +113,15 @@ class QibolabBackend(NumpyBackend):
     def execute_circuit(self, circuit, initial_state=None, nshots=1000):
         """Executes a quantum circuit.
 
+        The circuit must be expressed in the platform's native gate set.  The
+        default compiler supports: ``I``, ``Z``, ``RZ``, ``H``, ``GPI``,
+        ``GPI2``, ``CZ``, ``iSWAP``, ``CNOT``, ``M``, and ``Align``.  ``H``
+        is decomposed automatically to a virtual-Z followed by a GPI2 pulse at
+        ``phi=pi/2``.  Circuits containing any other non-native gate will raise
+        a ``KeyError`` at compile time; preprocess them with
+        ``qibo.transpiler.unroller.Unroller(NativeGates.GPI2)`` before passing
+        them here.
+
         Args:
             circuit (:class:`qibo.models.circuit.Circuit`): Circuit to execute.
             initial_state (:class:`qibo.models.circuit.Circuit`): Circuit to prepare the initial state.

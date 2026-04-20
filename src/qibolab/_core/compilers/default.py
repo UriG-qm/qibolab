@@ -43,6 +43,14 @@ def gpi_rule(gate: Gate, natives: SingleQubitNatives) -> PulseSequence:
     return natives.R(theta=np.pi, phi=gate.parameters[0])
 
 
+def h_rule(gate: Gate, natives: SingleQubitNatives) -> PulseSequence:
+    """H = Z · GPI2(pi/2) on resonance."""
+    gpi2_sequence = natives.R(theta=np.pi / 2, phi=np.pi / 2)
+    drive_ch = next(iter(gpi2_sequence.channels))
+    z_sequence = PulseSequence([(drive_ch, VirtualZ(phase=math.pi))])
+    return z_sequence + gpi2_sequence
+
+
 def cz_rule(gate: Gate, natives: TwoQubitNatives) -> PulseSequence:
     """CZ applied as defined in the platform runcard.
 
