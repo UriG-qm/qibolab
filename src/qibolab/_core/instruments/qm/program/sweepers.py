@@ -1,3 +1,13 @@
+"""QM amplitude-sweep prescaling convention.
+
+For a Sweeper with ``Parameter.amplitude``, the emitted QUA loop
+variable iterates over ``(sweep_value / waveform_max_sample)``, not
+``sweep_value`` itself. This is so that ``amp(v) * <stored waveform>``
+recovers the requested physical amplitude, since stored waveforms are
+normalised to fit the OPX's [-1, 1] range after ``sweeper_amplitude``
+picks the waveform-registration amplitude.
+"""
+
 import numpy as np
 import numpy.typing as npt
 from qm import qua
@@ -52,13 +62,20 @@ def sweeper_amplitude(values: npt.NDArray) -> float:
     The multiplicative factor used in the ``qua.amp`` command is limited, so we
     may need to register a pulse with different amplitude than the original pulse
     in the sequence, in order to reach all sweeper values when sweeping amplitude.
+
+    See module docstring for the prescaling convention: the QUA loop variable
+    iterates over (sweep_value / waveform_max_sample), not sweep_value itself.
     """
     return max(abs(values)) / MAX_AMPLITUDE_FACTOR
 
 
 def normalize_amplitude(values: npt.NDArray) -> npt.NDArray:
     """Normalize amplitude factor to [-MAX_AMPLITUDE_FACTOR,
-    MAX_AMPLITUDE_FACTOR]."""
+    MAX_AMPLITUDE_FACTOR].
+
+    See module docstring for the prescaling convention: the QUA loop variable
+    iterates over (sweep_value / waveform_max_sample), not sweep_value itself.
+    """
     return values / sweeper_amplitude(values)
 
 
@@ -86,6 +103,11 @@ def normalize_frequency(values: npt.NDArray, lo_frequency: int) -> npt.NDArray:
 
 
 def _amplitude(variable: _Variable, parameters: Parameters):
+    """Apply normalized amplitude sweep.
+
+    See module docstring for the prescaling convention: the QUA loop variable
+    iterates over (sweep_value / waveform_max_sample), not sweep_value itself.
+    """
     parameters.amplitude = qua.amp(variable)
 
 

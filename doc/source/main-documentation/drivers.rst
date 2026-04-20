@@ -61,6 +61,34 @@ Tested with a cluster of nine `OPX+ <https://www.quantum-machines.co/products/op
 
 Qibolab is communicating with the instruments using the `QUA <https://docs.quantum-machines.co/0.1/>`_ language, via the ``qm-qua`` and ``qualang-tools`` Python libraries.
 
+Amplitude Sweep Prescaling Convention
+""""""""""""""""""""""""""""""""""""""
+
+When sweeping the amplitude of a pulse using :class:`qibolab.sweeper.Sweeper` with
+:attr:`qibolab.sweeper.Parameter.amplitude`, the emitted QUA loop variable does not
+iterate directly over the requested sweep values. Instead, it iterates over a
+prescaled version: ``(sweep_value / waveform_max_sample)``.
+
+This prescaling arises because QUA waveforms are normalized to fit the OPX's [-1, 1]
+range. When applying the ``amp(v)`` modifier, the computation ``amp(v) * <stored_waveform>``
+must recover the requested physical amplitude. The ``sweeper_amplitude`` function
+computes the waveform-registration amplitude such that:
+
+.. math::
+
+    \text{physical\_amplitude} = \text{amp}(v) \times \text{normalized\_waveform}
+
+**Example:** If you request an amplitude sweep from 0 to 100 mV, and the waveform
+has a peak sample of 0.8 (in the normalized [-1, 1] range), then:
+
+- ``sweeper_amplitude([0, 50, 100])`` returns ``50 / 1.99 ≈ 25.1`` mV
+  (the registration amplitude in the QM config)
+- The QUA loop variable iterates over ``[0/25.1, 50/25.1, 100/25.1] ≈ [0, 2.0, 3.99]``
+- Multiplied by the normalized waveform sample (0.8), the physical amplitude is recovered:
+  ``amp(0) * 0.8 = 0``, ``amp(2.0) * 0.8 ≈ 100`` mV (approx), etc.
+
+For details, see :mod:`qibolab._core.instruments.qm.program.sweepers` module docstring.
+
 .. _qrng:
 
 Quantum Random Number Generator
