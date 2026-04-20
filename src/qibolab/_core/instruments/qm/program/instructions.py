@@ -120,7 +120,11 @@ def play(args: ExecutionArguments):
             processed_aligns.add(pulse.id)
 
     if args.relaxation_time > 0:
-        qua.wait(args.relaxation_time // 4)
+        elements = sorted({str(ch) for ch, _ in args.sequence})
+        if elements:
+            qua.wait(args.relaxation_time // 4, *elements)
+        else:
+            qua.wait(args.relaxation_time // 4)
 
 
 def _process_sweeper(sweeper: Sweeper, args: ExecutionArguments):
